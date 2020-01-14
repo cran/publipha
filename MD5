@@ -1,4 +1,4 @@
-c606c742e3bbfef8938b4d38397931d4 *DESCRIPTION
+f1469ba4b022cc585eecf94e8e44c2a1 *DESCRIPTION
 8f2795df89df69a2e11a857aa1b61b00 *NAMESPACE
 65c50aaf39cdeb26273e88fa08e4052a *R/data-anderson2010.R
 d8951aee5aadcd1c2032159aa648093f *R/data-baskerville2012.R
@@ -52,8 +52,8 @@ eee0022bd55de759febe4642bff4aa33 *src/Makevars
 a239d444a0460e4abed452df5926ef8c *src/stan_files/chunks/densities.stan
 ef217dbc12ab476c518879db0491d35e *src/stan_files/chunks/license.stan
 fd10473e68b647f27491b652f5b17cef *src/stan_files/chunks/phma_likelihoods.stan
-848d6b4b0334dfe2f6c15f08613a7d8f *src/stan_files/chunks/psma_likelihoods.stan
-97d8113ccca3b4f522c5e7a230b4a903 *src/stan_files/cma.stan
+949be95b06e2f06f73657a72ef3c0381 *src/stan_files/chunks/psma_likelihoods.stan
+95813e5dcd1402f56b3b455f2b8cc388 *src/stan_files/cma.stan
 cfd0ddaa90149c4e469fe1b3b399b67f *src/stan_files/phma.stan
 585357b05819120d8b20b20527aceda8 *src/stan_files/psma.stan
 f8903adefb4c1844616f994332abd6d8 *tests/testthat.R

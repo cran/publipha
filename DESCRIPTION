@@ -1,6 +1,6 @@
 Package: publipha
 Title: Bayesian Meta-Analysis with Publications Bias and P-Hacking
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: c(
     person("Jonas", "Moss", , "jonas.gjertsen@gmail.com", role = c("aut", "cre"), 
       comment = c(ORCID = "0000-0002-6876-6964")
@@ -31,9 +31,9 @@ Collate: 'data-anderson2010.R' 'data-baskerville2012.R'
         'ma.R' 'generics.R' 'publipha-package.R' 'stanmodels.R'
         'tools.R' 'utility.R' 'zzz.R'
 Language: en-US
-Packaged: 2020-01-07 13:39:23 UTC; jonas
+Packaged: 2020-01-14 08:45:07 UTC; jonas
 Author: Jonas Moss [aut, cre] (<https://orcid.org/0000-0002-6876-6964>),
   Trustees of Columbia University [cph]
 Maintainer: Jonas Moss <jonas.gjertsen@gmail.com>
 Repository: CRAN
-Date/Publication: 2020-01-08 17:20:02 UTC
+Date/Publication: 2020-01-15 00:20:07 UTC
