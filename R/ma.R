@@ -1,29 +1,5 @@
-# Estimate Bayesian Meta-analysis models with STAN
-# Copyright (C) 2019 Jonas Moss
-#
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 3
-# of the License, or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
-# USA.
-
 #' Class \code{mafit}: Fitted Meta-analysis Model
 #'
-#' @slot bias The kind of bias modelled. Can be one of
-#'     \code{publication_selection}, \code{p-hacking} or \code{none}.
-#' @slot alpha Ordered numeric vector of cutoffs including 0 and 1.
-#' @slot yi Numeric vector of estimated effect sizes.
-#' @slot vi Numeric vector of study-specific variances.
-#' @slot parameters The list of prior parameters used in the fitting.
 #' @name mafit-class
 #' @rdname mafit-class
 #' @exportClass mafit
@@ -36,7 +12,8 @@ setClass(
     alpha = "numeric",
     yi = "numeric",
     vi = "numeric",
-    parameters = "list"
+    parameters = "list",
+    tau_prior = "character"
   )
 )
 
@@ -63,14 +40,20 @@ setClass(
 #' The effect size distribution is normal with mean \code{theta0} and standard
 #'    deviation \code{tau}. The prior for \code{theta0} is normal with
 #'    parameters \code{theta0_mean} (default: 0), \code{theta0_sd} (default: 1).
-#'    The prior for \code{tau} is half normal with parameters \code{tau_mean}
-#'    (default: 1), \code{tau_sd} (default: 1). \code{eta} is the vector of
-#'    \code{K} normalized publication probabilities (publication bias model) or
-#'    \code{K} *p*-hacking probabilities (*p*-hacking model). The prior of eta
-#'    is Dirchlet with parameter eta0, which defaults to \code{rep(1, K)}
-#'    for the publication bias model and the p-hacking model. `eta0` is the
-#'    prior for the Dirichlet distribution over the non-normalized etas in the
-#'    publication bias model, and they are forced to be decreasing.
+#'    \code{eta} is the vector of \code{K} normalized publication probabilities
+#'    (publication bias model) or \code{K} *p*-hacking probabilities
+#'    (*p*-hacking model). The prior of eta is Dirchlet with parameter eta0,
+#'    which defaults to \code{rep(1, K)} for the publication bias model and
+#'    the p-hacking model. `eta0` is the prior for the Dirichlet distribution
+#'    over the non-normalized etas in the publication bias model, and they are
+#'    forced to be decreasing.
+#'
+#'    The standard prior for \code{tau} is half-normal with parameters
+#'    \code{tau_mean} (default: 0), \code{tau_sd} (default: 1). If the uniform
+#'    prior is used, the parameter are \code{u_min} (default: 0), and \code{u_max}
+#'    with a default of 3. The inverse Gamma has parameters \code{shape}
+#'    (default: 1) and scale \code{default: 1}.
+#'
 #'    To change the prior parameters, pass them to `prior` in a list.
 #'
 #' @export
@@ -84,11 +67,14 @@ setClass(
 #' @param alpha Numeric vector; Specifies the cutoffs for significance.
 #'     Should include 0 and 1. Defaults to (0, 0.025, 0.05, 1).
 #' @param prior Optional list of prior parameters. See the details.
+#' @param tau_prior Which prior to use for `tau`, the heterogeneity parameter.
+#'     Defaults to "`half-normal`"; "`uniform`" and "`inv_gamma` are also
+#'     supported.
 #' @param ... Passed to \code{rstan::sampling}.
 #' @return An S4 object of class `mafit` when `ma`, `psma`, `phma` or `cma` is
 #'    run. A list of `mafit` objects when `allma` is run.
 #' @examples \donttest{
-#' phma_model <- phma(yi, vi, data = metafor::dat.begg1989)
+#' phma_model <- phma(yi, vi, data = metadat::dat.begg1989)
 #' }
 #' prior <- list(
 #'   eta0 = c(3, 2, 1),
@@ -98,13 +84,13 @@ setClass(
 #'   tau_sd = 1
 #' )
 #' \donttest{
-#' psma_model <- psma(yi, vi, data = metafor::dat.begg1989, prior = prior)
+#' psma_model <- psma(yi, vi, data = metadat::dat.begg1989, prior = prior)
 #' }
 #' \donttest{
-#' cma_model <- psma(yi, vi, data = metafor::dat.begg1989, prior = prior)
+#' cma_model <- psma(yi, vi, data = metadat::dat.begg1989, prior = prior)
 #' }
 #' \donttest{
-#' model <- all(yi, vi, data = metafor::dat.begg1989, prior = prior)
+#' model <- allma(yi, vi, data = metadat::dat.begg1989, prior = prior)
 #' }
 #' @references Hedges, Larry V. "Modeling publication selection effects
 #' in meta-analysis." Statistical Science (1992): 246-255.
@@ -117,11 +103,14 @@ ma <- function(yi,
                bias = c("publication selection", "p-hacking", "none"),
                data,
                alpha = c(0, 0.025, 0.05, 1),
-               prior = NULL, ...) {
+               prior = NULL,
+               tau_prior = c("half-normal", "uniform", "inv_gamma"),
+               ...) {
   dots <- list(...)
 
   alpha <- sort(alpha)
   bias <- match.arg(bias, c("publication selection", "p-hacking", "none"))
+  tau_prior <- match.arg(tau_prior)
 
   ## Finds `yi` and `vi` in `data` if it is supplied.
   if (!missing(data)) {
@@ -137,10 +126,22 @@ ma <- function(yi,
   if (is.null(prior$theta0_sd)) prior$theta0_sd <- 1
   if (is.null(prior$tau_mean)) prior$tau_mean <- 0
   if (is.null(prior$tau_sd)) prior$tau_sd <- 1
+  if (is.null(prior$min)) prior$u_min <- 0
+  if (is.null(prior$max)) prior$u_max <- 3
+  if (is.null(prior$shape)) prior$shape <- 1
+  if (is.null(prior$scale)) prior$scale <- 1
+
+  ## Add prior
+  prior$tau_prior = switch(tau_prior,
+                          "half-normal" = 1,
+                          "uniform" = 2,
+                          "inv_gamma" = 3)
+
+  ## Allowed names are checked.
 
   allowed_names <- c(
     "eta0", "theta0_mean", "theta0_sd", "tau_mean",
-    "tau_sd"
+    "tau_sd", "u_min", "u_max", "shape", "scale", "tau_prior"
   )
 
   if (!all(names(prior) %in% allowed_names)) {
@@ -196,7 +197,7 @@ ma <- function(yi,
         list(
           theta0 = 0,
           tau = 1,
-          theta_tilde = theta_start,
+          theta = theta_start,
           eta = eta_start
         )
       }
@@ -224,6 +225,7 @@ ma <- function(yi,
   obj@parameters <- parameters
   obj@alpha <- alpha
   obj@bias <- bias
+  obj@tau_prior < tau_prior
   obj
 }
 
@@ -233,7 +235,9 @@ psma <- function(yi,
                  vi,
                  data,
                  alpha = c(0, 0.025, 0.05, 1),
-                 prior = NULL, ...) {
+                 prior = NULL,
+                 tau_prior = c("half-normal", "uniform", "inv_gamma"),
+                 ...) {
   args <- arguments(expand_dots = TRUE)
   do_call(ma, c(args, bias = "publication selection"))
 }
@@ -245,7 +249,9 @@ phma <- function(yi,
                  vi,
                  data,
                  alpha = c(0, 0.025, 0.05, 1),
-                 prior = NULL, ...) {
+                 prior = NULL,
+                 tau_prior = c("half-normal", "uniform", "inv_gamma"),
+                 ...) {
   args <- arguments(expand_dots = TRUE)
   do_call(ma, c(args, bias = "p-hacking"))
 }
@@ -255,7 +261,9 @@ phma <- function(yi,
 cma <- function(yi,
                 vi,
                 data,
-                prior = NULL, ...) {
+                prior = NULL,
+                tau_prior = c("half-normal", "uniform", "inv_gamma"),
+                ...) {
   args <- arguments(expand_dots = TRUE)
   do_call(ma, c(args, bias = "none"))
 }
@@ -267,6 +275,7 @@ allma <- function(yi,
                   data,
                   alpha = c(0, 0.025, 0.05, 1),
                   prior = NULL,
+                  tau_prior = c("half-normal", "uniform", "inv_gamma"),
                   ...) {
   args <- arguments(expand_dots = TRUE)
   list(

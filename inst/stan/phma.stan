@@ -17,34 +17,39 @@ data {
   real <lower = 0> theta0_sd;
   real tau_mean;
   real <lower = 0> tau_sd;
+  real <lower = 0> u_min;
+  real <lower = 0> u_max;
+  real <lower = 0> shape;
+  real <lower = 0> scale;
+  int tau_prior;
 
 
 }
 
 parameters {
   real theta0;
-  real theta_tilde[N];
+  real theta[N];
   real <lower = 0> tau;
   simplex[k - 1] eta;
 
 }
 
-transformed parameters {
-
-  real theta[N];
-  for (n in 1:N) theta[n] = theta0 + tau * theta_tilde[n];
-
-}
-
-
 model {
 
   theta0 ~ normal(theta0_mean, theta0_sd);
-  tau ~  normal(tau_mean, tau_sd) T[0, ];
-  eta ~ dirichlet(eta0);
-  theta_tilde ~ normal(0, 1);
 
-  for(n in 1:N) yi[n] ~ phma_normal_lpdf(theta[n], sqrt(vi[n]), alpha, eta);
+  if(tau_prior == 1) {
+    tau ~  normal(tau_mean, tau_sd) T[0, ];
+  } else if (tau_prior == 2) {
+    tau ~ uniform(u_min, u_max);
+  } else if (tau_prior == 3) {
+    tau ~ inv_gamma(shape, scale);
+  }
+
+  eta ~ dirichlet(eta0);
+  theta ~ normal(theta0, tau);
+
+  for(n in 1:N) yi[n] ~ phma_normal(theta[n], sqrt(vi[n]), alpha, eta);
 
 }
 
